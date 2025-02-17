@@ -1,0 +1,11 @@
+<BEG animatedImage,images/testImage.png,96,90,[[24,339,96,90]],0,0.1>
+<DEFCOORDS [0],[0, 95, 190, 285, 380, 475]>
+<DEFCOORDS [125, 250, 375, 625, 750, 875],[0]>
+<DEFCOORDS [125, 250, 375, 625, 750, 875],[95]>
+<DEFCOORDS [875, 750, 625, 500, 375, 250, 125],[190]>
+<DEFCOORDS [125, 250, 375, 500, 625, 750, 875],[285]>
+<DEFCOORDS [125, 250, 375, 500, 625, 750, 875],[380]>
+<DEFCOORDS [125, 250, 375, 500, 625, 750, 875],[475]>
+<DEFCOORDS [500],[0, 95]>
+<BEG launchEventObject,images/testImage.png,96,90,[[126,339,96,90]],0,0.1,nothing,True>
+<DEFCOORDS [480],[200]>
