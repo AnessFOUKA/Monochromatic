@@ -1,19 +1,28 @@
 imgDict={}
+
+function removeObjectFromList(list,object){
+    let listReturned=[];
+    for (let i of list){
+        if (i!=object){
+            listReturned.push(i);
+        }
+    }
+    return listReturned;
+}
+
 class stdCanvas{
     isJustCreated=true;
     constructor(elements){
         this.elements=elements;
     }
     create(){
+    }
+    step(){
         for (i of this.elements){
             if (i.isJustCreated){
                 i.create();
                 i.isJustCreated=false;
             }
-        }
-    }
-    step(){
-        for (i of this.elements){
             i.step();
         }
     }
@@ -69,6 +78,12 @@ class camera{
     }
 }
 
+function collided(elem1,elem2){
+    return (elem1.x < elem2.x + elem2.width &&
+        elem1.x + elem1.width > elem2.x &&
+        elem1.y < elem2.y + elem2.height &&
+        elem1.y + elem1.height > elem2.y)
+}
 // Détection de collision entre deux éléments
 function solid(elem1, elem2) {
     let elem1Final = elem1;
@@ -79,10 +94,7 @@ function solid(elem1, elem2) {
     // Vérification si elem2 est dans la zone d'influence étendue de elem1
     if (detectInbound(elem2, elem1Final.x - 50, elem1Final.y - 50, elem1Final.width + 50, elem1Final.height + 50)) {
         // Vérification de la collision entre les deux éléments
-        if (elem1Final.x < elem2.x + elem2.width &&
-            elem1Final.x + elem1Final.width > elem2.x &&
-            elem1Final.y < elem2.y + elem2.height &&
-            elem1Final.y + elem1Final.height > elem2.y) {
+        if (collided(elem1Final,elem2)) {
             
             // Calcul des chevauchements sur les axes X et Y
             let overlapX = Math.min(elem1Final.x + elem1Final.width - elem2.x, elem2.x + elem2.width - elem1Final.x);
@@ -103,6 +115,7 @@ function solid(elem1, elem2) {
                     elem1Final.y = elem1Final.y + overlapY; // Pousser vers le bas
                 }
             }
+
         }
     }
 }
@@ -122,7 +135,13 @@ class map extends stdCanvas{
     Camera=new camera(0,0,960,544,this);
     step(){
         this.player.step();
+        this.player.motherCanvas=this;
         for (i of this.elements){
+            if (i.isJustCreated){
+                i.create();
+                i.motherCanvas=this;
+                i.isJustCreated=false;
+            }
             i.step();
             if (i instanceof launchEventObject){
                 solid(this.player,i)
@@ -160,6 +179,42 @@ class animatedImage{
     }
 }
 
+class enemy extends animatedImage{
+    health=150;
+    constructor(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation,enemyPatternEvent){
+        super(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation);
+        this.enemyPatternEvent=enemyPatternEvent;
+    }
+    step(){
+        if (this.health<=0){
+            this.motherCanvas.elements=removeObjectFromList(this.motherCanvas.elements,this);
+        }
+    }
+}
+
+class projectile extends animatedImage{
+    constructor(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation,moveSpeed,sender,strength){
+        super(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation);
+        this.moveSpeed=moveSpeed;
+        this.sender=sender;
+        this.strength=strength;
+    }
+    step(){
+        this.y-=this.moveSpeed;
+        if (!detectInbound(this,this.motherCanvas.Camera.x,this.motherCanvas.Camera.y,this.motherCanvas.Camera.width,this.motherCanvas.Camera.height)){
+            this.motherCanvas.elements=removeObjectFromList(this.motherCanvas.elements,this);
+        }
+        for (let i of this.motherCanvas.elements){
+            if ((i instanceof enemy || i instanceof character)&&i!=this.sender){
+                if (collided(this,i)){
+                    i.health-=this.strength;
+                    this.motherCanvas.elements=removeObjectFromList(this.motherCanvas.elements,this);
+                }
+            }
+        }
+    }
+}
+
 class launchEventObject extends animatedImage{
     isJustCreated=true
     constructor(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation,Event,solid){
@@ -171,6 +226,7 @@ class launchEventObject extends animatedImage{
 
 class character extends animatedImage{
 isJustCreated=true
+health=100;
     constructor(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation,imageCoordsList){
         super(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation);
         this.imageCoordsList=imageCoordsList;
@@ -181,6 +237,9 @@ isJustCreated=true
                 this.x+=input[1];
                 this.y+=input[2];
             }
+        }
+        if (controls["x"]){
+            this.motherCanvas.elements.push(new projectile(testImage,this.x,this.y-10,51,57,[[259,242,51,57]],0,0.1,"images/testImage.png",40,this,5))
         }
     }
 }
@@ -364,8 +423,8 @@ let ctx=gameScreen.getContext('2d');
 controls=setControls(["ArrowLeft","ArrowUp","ArrowRight","ArrowDown","x","w","Control"]);
 let testImage=new Image();
 testImage.src="images/testImage.png"
-instancesList=[new map([new launchEventObject(testImage,0,0,600,600,[[24,339,96,90]],0,0.1,"images/testImage.png","nothing",false)],new character(testImage,50,50,165,102,[[21,12,165,102]],0,0.1,"images/testImage.png",[]),960,544)]
-customReadarray("test.morpgef",function(array){instancesList[0].elements=array;},imgDict)
+instancesList=[new map([],new character(testImage,50,50,165,102,[[21,12,165,102]],0,0.1,"images/testImage.png",[]),960,544)]
+customReadarray("test.morpgef",function(array){instancesList[0].elements=array;instancesList[0].elements.push(new enemy(testImage,50,50,96,90,[[126,339,96,90]],0,0.1,"images/testImage.png",0));},imgDict)
 mainloop();
 
 document.body.appendChild(gameScreen);
