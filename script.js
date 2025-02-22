@@ -144,13 +144,13 @@ class map extends stdCanvas{
             }
             i.step();
             if (i instanceof launchEventObject){
-                solid(this.player,i)
+                if (i.solid==true){
+                    solid(this.player,i)
+                }
             }
         }
     }
     draw(){
-        this.Camera.x=this.player.x-(Math.floor(this.Camera.width/2));
-        this.Camera.y=this.player.y-(Math.floor(this.Camera.height/2));
         this.Camera.showCameraZone();
     }
 }
@@ -171,11 +171,12 @@ class animatedImage{
     create(){}
     step(){}
     draw(x=this.x,y=this.y){
-        ctx.drawImage(this.spritesheet,this.imageCoords[Math.floor(this.imageCoordsIndex)][0],this.imageCoords[Math.floor(this.imageCoordsIndex)][1],this.imageCoords[Math.floor(this.imageCoordsIndex)][2],this.imageCoords[Math.floor(this.imageCoordsIndex)][3],x,y,this.imageCoords[Math.floor(this.imageCoordsIndex)][2],this.imageCoords[Math.floor(this.imageCoordsIndex)][3])
-        this.imageCoordsIndex+=this.animationSpeed
-        if (this.imageCoordsIndex>this.imageCoords.length){
-			this.imageCoordsIndex=0
+        if (this.imageCoordsIndex<this.imageCoords.length-1){
+            this.imageCoordsIndex+=this.animationSpeed
+        }else{
+            this.imageCoordsIndex=0
         }
+        ctx.drawImage(this.spritesheet,this.imageCoords[Math.floor(this.imageCoordsIndex)][0],this.imageCoords[Math.floor(this.imageCoordsIndex)][1],this.imageCoords[Math.floor(this.imageCoordsIndex)][2],this.imageCoords[Math.floor(this.imageCoordsIndex)][3],x,y,this.imageCoords[Math.floor(this.imageCoordsIndex)][2],this.imageCoords[Math.floor(this.imageCoordsIndex)][3])
     }
 }
 
@@ -192,6 +193,32 @@ class enemy extends animatedImage{
     }
 }
 
+class gameEvent{
+    index=0;
+    isJustCreated=true;
+    constructor(eventFunction,maxIndex,cache,eventSpeed,loop){
+        this.eventFunction=eventFunction;
+        this.maxIndex=maxIndex;
+        this.cache=cache;
+        this.eventSpeed=eventSpeed;
+        this.loop=loop
+    }
+    create(){}
+    step(){
+        if (this.index<this.maxIndex){
+            this.eventFunction(this)
+            this.index+=1;
+        }else{
+            if (this.loop){
+                this.index=0;
+            }else{
+                this.motherCanvas.elements=removeObjectFromList(this.motherCanvas.elements,this);
+            }
+        }
+    }
+    draw(){}
+}
+
 class projectile extends animatedImage{
     constructor(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation,moveSpeed,sender,strength){
         super(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation);
@@ -202,6 +229,10 @@ class projectile extends animatedImage{
     step(){
         this.y-=this.moveSpeed;
         if (!detectInbound(this,this.motherCanvas.Camera.x,this.motherCanvas.Camera.y,this.motherCanvas.Camera.width,this.motherCanvas.Camera.height)){
+            this.motherCanvas.elements=removeObjectFromList(this.motherCanvas.elements,this);
+        }
+        if (collided(this,this.motherCanvas.player)&&this.motherCanvas.player!=this.sender){
+            this.motherCanvas.player.health-=this.strength;
             this.motherCanvas.elements=removeObjectFromList(this.motherCanvas.elements,this);
         }
         for (let i of this.motherCanvas.elements){
@@ -239,7 +270,10 @@ health=100;
             }
         }
         if (controls["x"]){
-            this.motherCanvas.elements.push(new projectile(testImage,this.x,this.y-10,51,57,[[259,242,51,57]],0,0.1,"images/testImage.png",40,this,5))
+            this.motherCanvas.elements.push(new projectile(testImage,this.x,this.y-10,51,57,[[259,242,51,57],[314,242,51,57]],0,1,"images/testImage.png",20,this,5))
+        }
+        if(this.health<=0){
+            console.log("won")
         }
     }
 }
@@ -359,8 +393,22 @@ function convertArrayValuesToNumber(ArrayGived){
     return finalArray;
 }
 
-let lsd=convertArrayValuesToNumber(["5","8",["3","2"]])
-console.log(lsd);
+function uncompress(array) {
+    let finalArray = [];
+    
+    array.forEach(item => {
+        let subList = item.split(";").map(Number);
+        
+        for (let j = 0; j < subList[0]; j++) {
+            finalArray.push(subList[1]);
+        }
+    });
+    
+    return finalArray;
+}
+
+// Exemple d'utilisation
+console.log(uncompress(["3;5", "2;8"])); 
 
 function customReadarray(filename,callBack,imgMemDict){
     fetch(filename)
@@ -368,50 +416,59 @@ function customReadarray(filename,callBack,imgMemDict){
         return text.text();
     })
     .then(data=>{
-        let finalArray=[];
-        let firstClose;
-        let firstOpen;
+        lineBegining=0
+        finalArray=[]
         for (let i=0;i<data.length;i++){
-            firstClose=data[i];
-            if (firstClose==">") {
-                firstOpen=customFirstOccurrenceOf(data.substring(0,i),"<",-1)
-                finalArray.push(data.substring(firstOpen+1,i))
+            if (data[i]=="\r"){
+                finalArray.push(data.substring(lineBegining,i));
+                lineBegining=i+2;
             }
         }
         return finalArray;
     })
     .then(data=>{
-        let finalArray=[];
-        let xAndYCoords;
-        let objTemplate;
-        for (let i=0;i<data.length;i++){
-            if (data[i].substring(0,3)=="BEG"){
-                objTemplate=customLoads(`[${data[i].substring(4,data[i].length)}]`)
-                for(let j=i+1;j<data.length;j++){
-                    if (data[j].substring(0,9)=="DEFCOORDS"){
-                        xAndYCoords=convertArrayValuesToNumber(customLoads(`[${data[j].substring(10,data[j].length)}]`));
-                        if (imgMemDict[objTemplate[1]]==null){
-                            imgMemDict[objTemplate[1]]=new Image();
-                            imgMemDict[objTemplate[1]].src=objTemplate[1]
-                        }
-                        if (objTemplate[0]=="animatedImage"){
-                            for (let xElem of xAndYCoords[0]){
-                                for (let yElem of xAndYCoords[1]){
-                                    finalArray.push(new animatedImage(imgMemDict[objTemplate[1]],xElem,yElem,Number(objTemplate[2]),Number(objTemplate[3]),convertArrayValuesToNumber(objTemplate[4]),Number(objTemplate[5]),Number(objTemplate[6]),objTemplate[1]))
-                                }
-                            }
-                        }else if(objTemplate[0]=="launchEventObject"){
-                            for (let xElem of xAndYCoords[0]){
-                                for (let yElem of xAndYCoords[1]){
-                                    finalArray.push(new launchEventObject(imgMemDict[objTemplate[1]],xElem,yElem,Number(objTemplate[2]),Number(objTemplate[3]),convertArrayValuesToNumber(objTemplate[4]),Number(objTemplate[5]),Number(objTemplate[6]),objTemplate[1],objTemplate[7],Boolean(objTemplate[8])))
-                                }
-                            }
-                        }
-                    }
+        finalArray=[];
+        for (i of data){
+            concernedList=customLoads(`[${i}]`)
+            if (concernedList[0]=="animatedImage"){
+                x=uncompress(concernedList[7])
+                y=uncompress(concernedList[8])
+                if (!(concernedList[6] in imgMemDict)){
+                    imgMemDict[concernedList[6]]=new Image();
+                    imgMemDict[concernedList[6]].src=concernedList[6]
+                }
+                for (let j=0;j<x.length;j++){
+                    finalArray.push(new animatedImage(imgMemDict[concernedList[6]],x[j],y[j],Number(concernedList[1]),Number(concernedList[2]),convertArrayValuesToNumber(concernedList[3]),Number(concernedList[4]),Number(concernedList[5]),concernedList[6]))
+                }
+            }
+            else if (concernedList[0]=="launchEventObject"){
+                x=uncompress(concernedList[9])
+                y=uncompress(concernedList[10])
+                if (!(concernedList[6] in imgMemDict)){
+                    imgMemDict[concernedList[6]]=new Image();
+                    imgMemDict[concernedList[6]].src=concernedList[6]
+                }
+                for (let j=0;j<x.length;j++){
+                    finalArray.push(new launchEventObject(imgMemDict[concernedList[6]],x[j],y[j],Number(concernedList[1]),Number(concernedList[2]),convertArrayValuesToNumber(concernedList[3]),Number(concernedList[4]),Number(concernedList[5]),concernedList[6],concernedList[7],concernedList[8]==="true"))
+                }
+            }
+            else if (concernedList[0]=="enemy"){
+                x=uncompress(concernedList[8])
+                y=uncompress(concernedList[9])
+                if (!(concernedList[6] in imgMemDict)){
+                    imgMemDict[concernedList[6]]=new Image();
+                    imgMemDict[concernedList[6]].src=concernedList[6]
+                }
+                for (let j=0;j<x.length;j++){
+                    finalArray.push(new enemy(imgMemDict[concernedList[6]],x[j],y[j],Number(concernedList[1]),Number(concernedList[2]),convertArrayValuesToNumber(concernedList[3]),Number(concernedList[4]),Number(concernedList[5]),concernedList[6],concernedList[7]))
                 }
             }
         }
-        callBack(finalArray);
+        console.log(finalArray);
+        return finalArray;
+    })
+    .then(finaldata=>{
+        callBack(finaldata)
     })
 }
 
@@ -424,7 +481,7 @@ controls=setControls(["ArrowLeft","ArrowUp","ArrowRight","ArrowDown","x","w","Co
 let testImage=new Image();
 testImage.src="images/testImage.png"
 instancesList=[new map([],new character(testImage,50,50,165,102,[[21,12,165,102]],0,0.1,"images/testImage.png",[]),960,544)]
-customReadarray("test.morpgef",function(array){instancesList[0].elements=array;instancesList[0].elements.push(new enemy(testImage,50,50,96,90,[[126,339,96,90]],0,0.1,"images/testImage.png",0));},imgDict)
+customReadarray("test.csv",function(array){instancesList[0].elements=array;instancesList[0].elements.push(new enemy(testImage,50,50,96,90,[[126,339,96,90]],0,0.1,"images/testImage.png",0));instancesList[0].elements.push(new projectile(testImage,350,50,96,90,[[126,339,96,90]],0,0.1,"images/testImage.png",0,instancesList[0].elements[instancesList[0].elements.length-2],5));},imgDict)
 mainloop();
 
 document.body.appendChild(gameScreen);

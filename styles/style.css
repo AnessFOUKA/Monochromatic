@@ -1,5 +1,4 @@
 #gameScreen{
     border: 2px black solid;
     image-rendering: pixelated;
-    image-rendering: crisp-edges;
 }
