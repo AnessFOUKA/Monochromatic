@@ -1,5 +1,14 @@
 imgDict={}
 
+function cleanImgDict() {
+    for (let i in imgDict) {
+        if (imgDict[i]) {
+            imgDict[i].src = "";  // Libère la VRAM
+            delete imgDict[i];     // Supprime complètement l'entrée
+        }
+    }
+}
+
 function removeObjectFromList(list,object){
     let listReturned=[];
     for (let i of list){
@@ -42,20 +51,22 @@ class camera{
         this.givedMap=givedMap;
     }
     showCameraZone(){
-        if (this.x<=0){
-            this.x=0;
+        if (this.x<=this.givedMap.minX){
+            this.x=this.givedMap.minX;
         }
         if (this.x+this.width>=this.givedMap.width){
             this.x=this.givedMap.width-this.width;
         }
-        if (this.y<=0){
-            this.y=0;
+        if (this.y<=this.givedMap.minY){
+            this.y=this.givedMap.minY;
         }
         if (this.y+this.height>=this.givedMap.height){
             this.y=this.givedMap.height-this.height;
         }
         for (let i of this.givedMap.elements){
-            i.draw(i.x-this.x,i.y-this.y)
+            if (detectInbound(i,this.x,this.y,this.width,this.height)){
+                i.draw(i.x-this.x,i.y-this.y)
+            }
         }
 
         if (this.givedMap.player.x<=this.x){
@@ -73,52 +84,40 @@ class camera{
         if (this.givedMap.player.y+this.givedMap.player.height>=this.y+this.height){
             this.givedMap.player.y=this.y+this.height-this.givedMap.player.height
         }
-
         this.givedMap.player.draw(this.givedMap.player.x-this.x,this.givedMap.player.y-this.y);
     }
 }
 
 function collided(elem1,elem2){
-    return (elem1.x < elem2.x + elem2.width &&
-        elem1.x + elem1.width > elem2.x &&
-        elem1.y < elem2.y + elem2.height &&
-        elem1.y + elem1.height > elem2.y)
+    return (elem1.x <= elem2.x + elem2.width &&
+        elem1.x + elem1.width >= elem2.x &&
+        elem1.y <= elem2.y + elem2.height &&
+        elem1.y + elem1.height >= elem2.y)
 }
-// Détection de collision entre deux éléments
-function solid(elem1, elem2) {
-    let elem1Final = elem1;
-    if (elem1[0] !== undefined) {
-        elem1Final = elem1[0]; // Si elem1 est un tableau, prendre le premier élément
-    }
 
-    // Vérification si elem2 est dans la zone d'influence étendue de elem1
-    if (detectInbound(elem2, elem1Final.x - 50, elem1Final.y - 50, elem1Final.width + 50, elem1Final.height + 50)) {
-        // Vérification de la collision entre les deux éléments
-        if (collided(elem1Final,elem2)) {
-            
-            // Calcul des chevauchements sur les axes X et Y
-            let overlapX = Math.min(elem1Final.x + elem1Final.width - elem2.x, elem2.x + elem2.width - elem1Final.x);
-            let overlapY = Math.min(elem1Final.y + elem1Final.height - elem2.y, elem2.y + elem2.height - elem1Final.y);
-
-            if (overlapX < overlapY) {
-                // Collision sur l'axe X
-                if (elem1Final.x + elem1Final.width / 2 < elem2.x + elem2.width / 2) {
-                    elem1Final.x = elem1Final.x - overlapX; // Pousser à gauche
-                } else {
-                    elem1Final.x = elem1Final.x + overlapX; // Pousser à droite
-                }
-            } else {
-                // Collision sur l'axe Y
-                if (elem1Final.y + elem1Final.height / 2 < elem2.y + elem2.height / 2) {
-                    elem1Final.y = elem1Final.y - overlapY; // Pousser vers le haut
-                } else {
-                    elem1Final.y = elem1Final.y + overlapY; // Pousser vers le bas
-                }
+function solid(elem1,elem2){
+    if (detectInbound(elem2, elem1.x - 50, elem1.y - 50, elem1.width + 50, elem1.height + 50)) {
+        overlapX=Math.min(elem1.x+elem1.width,elem2.x+elem2.width)-Math.max(elem1.x,elem2.x);
+        overlapY=Math.min(elem1.y+elem1.height,elem2.y+elem2.height)-Math.max(elem1.y,elem2.y);
+        if (overlapX<overlapY){
+            if (elem1.x+elem1.width>=elem2.x && elem1.x+elem1.width<=elem2.x+elem2.width/2){
+                elem1.x=elem2.x-elem1.width
             }
-
+            if (elem1.x<=elem2.x+elem2.width && elem1.x>=elem2.x+elem2.width/2){
+                elem1.x=elem2.x+elem2.width
+            }
+        }else{
+            if (elem1.y+elem1.height>=elem2.y && elem1.y+elem1.height<=elem2.y+elem2.height/2){
+                elem1.y=elem2.y-elem1.height
+            }
+            if (elem1.y<=elem2.y+elem2.height && elem1.y>=elem2.y+elem2.height/2){
+                elem1.y=elem2.y+elem2.height
+            }
         }
     }
 }
+// Détection de collision entre deux éléments
+
 
 // Fonction de détection d'intrusion
 function detectInbound(elem, x, y, width, height) {
@@ -126,9 +125,11 @@ function detectInbound(elem, x, y, width, height) {
 }
 
 class map extends stdCanvas{
-    constructor(elements,player,width,height){
+    constructor(elements,player,minX,minY,width,height){
         super(elements);
         this.player=player;
+        this.minX=minX;
+        this.minY=minY;
         this.width=width;
         this.height=height;
     }
@@ -143,12 +144,13 @@ class map extends stdCanvas{
                 i.isJustCreated=false;
             }
             i.step();
-            if (i instanceof launchEventObject){
+            if (i instanceof launchEventObject || i instanceof enemy){
                 if (i.solid==true){
                     solid(this.player,i)
                 }
             }
         }
+        this.Camera.y-=1
     }
     draw(){
         this.Camera.showCameraZone();
@@ -176,19 +178,8 @@ class animatedImage{
         }else{
             this.imageCoordsIndex=0
         }
-        ctx.drawImage(this.spritesheet,this.imageCoords[Math.floor(this.imageCoordsIndex)][0],this.imageCoords[Math.floor(this.imageCoordsIndex)][1],this.imageCoords[Math.floor(this.imageCoordsIndex)][2],this.imageCoords[Math.floor(this.imageCoordsIndex)][3],x,y,this.imageCoords[Math.floor(this.imageCoordsIndex)][2],this.imageCoords[Math.floor(this.imageCoordsIndex)][3])
-    }
-}
-
-class enemy extends animatedImage{
-    health=150;
-    constructor(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation,enemyPatternEvent){
-        super(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation);
-        this.enemyPatternEvent=enemyPatternEvent;
-    }
-    step(){
-        if (this.health<=0){
-            this.motherCanvas.elements=removeObjectFromList(this.motherCanvas.elements,this);
+        if (this.spritesheet!=null){
+            ctx.drawImage(this.spritesheet,this.imageCoords[Math.floor(this.imageCoordsIndex)][0],this.imageCoords[Math.floor(this.imageCoordsIndex)][1],this.imageCoords[Math.floor(this.imageCoordsIndex)][2],this.imageCoords[Math.floor(this.imageCoordsIndex)][3],x,y,this.imageCoords[Math.floor(this.imageCoordsIndex)][2],this.imageCoords[Math.floor(this.imageCoordsIndex)][3])
         }
     }
 }
@@ -207,16 +198,43 @@ class gameEvent{
     step(){
         if (this.index<this.maxIndex){
             this.eventFunction(this)
-            this.index+=1;
+            this.index+=this.eventSpeed;
         }else{
             if (this.loop){
                 this.index=0;
             }else{
-                this.motherCanvas.elements=removeObjectFromList(this.motherCanvas.elements,this);
+                if (this.motherCanvas!=undefined){
+                    this.motherCanvas.elements=removeObjectFromList(this.motherCanvas.elements,this);
+                }
             }
         }
     }
     draw(){}
+}
+
+class enemy extends animatedImage{
+    health=150;
+    constructor(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation,enemyPatternEvent,solid){
+        super(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation);
+        this.enemyPatternEvent=enemyPatternEvent;
+        this.solid=solid;
+    }
+    create(){
+        if (this.enemyPatternEvent!="nothing"){
+            this.enemyPatternEvent=new gameEvent(eventsList[this.enemyPatternEvent].eventFunction,eventsList[this.enemyPatternEvent].maxIndex,eventsList[this.enemyPatternEvent].cache);
+            this.enemyPatternEvent.cache=[this];
+        }
+    }
+    step(){
+        if (this.enemyPatternEvent!="nothing"){
+            if (detectInbound(this,this.motherCanvas.Camera.x,this.motherCanvas.Camera.y,this.motherCanvas.Camera.width,this.motherCanvas.Camera.height)){
+                this.enemyPatternEvent.step();
+            }
+        }
+        if (this.health<=0){
+            this.motherCanvas.elements=removeObjectFromList(this.motherCanvas.elements,this);
+        }
+    }
 }
 
 class projectile extends animatedImage{
@@ -227,7 +245,8 @@ class projectile extends animatedImage{
         this.strength=strength;
     }
     step(){
-        this.y-=this.moveSpeed;
+        this.x+=this.moveSpeed[0];
+        this.y+=this.moveSpeed[1];
         if (!detectInbound(this,this.motherCanvas.Camera.x,this.motherCanvas.Camera.y,this.motherCanvas.Camera.width,this.motherCanvas.Camera.height)){
             this.motherCanvas.elements=removeObjectFromList(this.motherCanvas.elements,this);
         }
@@ -256,8 +275,9 @@ class launchEventObject extends animatedImage{
 }
 
 class character extends animatedImage{
-isJustCreated=true
-health=100;
+    isJustCreated=true
+    health=100;
+    shotIndex=0
     constructor(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation,imageCoordsList){
         super(spritesheet,x,y,width,height,imageCoords,imageCoordsIndex,animationSpeed,spritesheetLocation);
         this.imageCoordsList=imageCoordsList;
@@ -270,7 +290,13 @@ health=100;
             }
         }
         if (controls["x"]){
-            this.motherCanvas.elements.push(new projectile(testImage,this.x,this.y-10,51,57,[[259,242,51,57],[314,242,51,57]],0,1,"images/testImage.png",20,this,5))
+            if (this.shotIndex==0){
+                this.motherCanvas.elements.push(new projectile(testImage,this.x,this.y-10,51,57,[[259,242,51,57],[314,242,51,57]],0,1,"images/testImage.png",[0,-10],this,5))
+            }
+            if (this.shotIndex>=10){
+                this.shotIndex=-1;
+            }
+            this.shotIndex+=1;
         }
         if(this.health<=0){
             console.log("won")
@@ -407,69 +433,85 @@ function uncompress(array) {
     return finalArray;
 }
 
-// Exemple d'utilisation
-console.log(uncompress(["3;5", "2;8"])); 
+function customReadFileSync(filename){
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', filename, false); // 'false' rend la requête synchrone
+    xhr.send();
 
-function customReadarray(filename,callBack,imgMemDict){
-    fetch(filename)
-    .then(text=>{
-        return text.text();
-    })
-    .then(data=>{
-        lineBegining=0
-        finalArray=[]
-        for (let i=0;i<data.length;i++){
-            if (data[i]=="\r"){
-                finalArray.push(data.substring(lineBegining,i));
-                lineBegining=i+2;
+    if (xhr.status === 200) {
+        return xhr.responseText; // Retourne le contenu du fichier
+    } else {
+        console.error(`Erreur lors du chargement du fichier : ${xhr.status}`);
+        return null;
+    }
+}
+
+function readLines(filename){
+    let lineBegining=0
+    let finalArray=[]
+    const text=customReadFileSync(filename);
+    for (let i=0;i<text.length;i++){
+        if (text[i]=="\r"){
+            finalArray.push(text.substring(lineBegining,i));
+            lineBegining=i+2;
+        }
+    }
+    return finalArray;
+}
+
+function csvConverter(filename,imgMemDict){
+    finalArray=[];
+    data=readLines(filename);
+    for (i of data){
+        concernedList=customLoads(`[${i}]`)
+        if (concernedList[0]=="enemy"){
+            x=uncompress(concernedList[9])
+            y=uncompress(concernedList[10])
+            if (!(concernedList[6] in imgMemDict)){
+                imgMemDict[concernedList[6]]=new Image();
+                imgMemDict[concernedList[6]].src=concernedList[6]
+            }
+            for (let j=0;j<x.length;j++){
+                finalArray.push(new enemy(imgMemDict[concernedList[6]],x[j],y[j],Number(concernedList[1]),Number(concernedList[2]),convertArrayValuesToNumber(concernedList[3]),Number(concernedList[4]),Number(concernedList[5]),concernedList[6],concernedList[7],concernedList[8]=="True"))
             }
         }
-        return finalArray;
-    })
-    .then(data=>{
-        finalArray=[];
-        for (i of data){
-            concernedList=customLoads(`[${i}]`)
-            if (concernedList[0]=="animatedImage"){
-                x=uncompress(concernedList[7])
-                y=uncompress(concernedList[8])
-                if (!(concernedList[6] in imgMemDict)){
-                    imgMemDict[concernedList[6]]=new Image();
-                    imgMemDict[concernedList[6]].src=concernedList[6]
-                }
-                for (let j=0;j<x.length;j++){
-                    finalArray.push(new animatedImage(imgMemDict[concernedList[6]],x[j],y[j],Number(concernedList[1]),Number(concernedList[2]),convertArrayValuesToNumber(concernedList[3]),Number(concernedList[4]),Number(concernedList[5]),concernedList[6]))
-                }
+        else if (concernedList[0]=="animatedImage"){
+            x=uncompress(concernedList[7])
+            y=uncompress(concernedList[8])
+            if (!(concernedList[6] in imgMemDict)){
+                imgMemDict[concernedList[6]]=new Image();
+                imgMemDict[concernedList[6]].src=concernedList[6]
             }
-            else if (concernedList[0]=="launchEventObject"){
-                x=uncompress(concernedList[9])
-                y=uncompress(concernedList[10])
-                if (!(concernedList[6] in imgMemDict)){
-                    imgMemDict[concernedList[6]]=new Image();
-                    imgMemDict[concernedList[6]].src=concernedList[6]
-                }
-                for (let j=0;j<x.length;j++){
-                    finalArray.push(new launchEventObject(imgMemDict[concernedList[6]],x[j],y[j],Number(concernedList[1]),Number(concernedList[2]),convertArrayValuesToNumber(concernedList[3]),Number(concernedList[4]),Number(concernedList[5]),concernedList[6],concernedList[7],concernedList[8]==="true"))
-                }
+            for (let j=0;j<x.length;j++){
+                finalArray.push(new animatedImage(imgMemDict[concernedList[6]],x[j],y[j],Number(concernedList[1]),Number(concernedList[2]),convertArrayValuesToNumber(concernedList[3]),Number(concernedList[4]),Number(concernedList[5]),concernedList[6]))
             }
-            else if (concernedList[0]=="enemy"){
-                x=uncompress(concernedList[8])
-                y=uncompress(concernedList[9])
-                if (!(concernedList[6] in imgMemDict)){
-                    imgMemDict[concernedList[6]]=new Image();
-                    imgMemDict[concernedList[6]].src=concernedList[6]
-                }
-                for (let j=0;j<x.length;j++){
-                    finalArray.push(new enemy(imgMemDict[concernedList[6]],x[j],y[j],Number(concernedList[1]),Number(concernedList[2]),convertArrayValuesToNumber(concernedList[3]),Number(concernedList[4]),Number(concernedList[5]),concernedList[6],concernedList[7]))
+        }
+    }
+    return finalArray
+}
+
+let eventsList={
+    "test":new gameEvent(
+        function(){
+            this.cache[0].x+=1
+        }
+    ,150,[],1,false),
+    "multiShootCorrupted":new gameEvent(
+        function(){
+            this.eventSpeed=1;
+            if (this.index<100){
+                this.cache[0].x+=1;
+            }else if(this.index>=100 && this.index<120){
+                this.cache[0].y+=5;
+            }
+            else{
+                this.cache[0].y-=1;
+                if (this.index%5==0){
+                    this.cache[0].motherCanvas.elements.push(new projectile(testImage,this.cache[0].x,this.cache[0].y+33,11,11,[[330,129,11,11]],0,0.1,"images/testImage.png",[-2,-1],this.cache[0],20))
                 }
             }
         }
-        console.log(finalArray);
-        return finalArray;
-    })
-    .then(finaldata=>{
-        callBack(finaldata)
-    })
+    ,800,[],0,false)
 }
 
 let gameScreen=document.createElement("canvas");
@@ -480,8 +522,8 @@ let ctx=gameScreen.getContext('2d');
 controls=setControls(["ArrowLeft","ArrowUp","ArrowRight","ArrowDown","x","w","Control"]);
 let testImage=new Image();
 testImage.src="images/testImage.png"
-instancesList=[new map([],new character(testImage,50,50,165,102,[[21,12,165,102]],0,0.1,"images/testImage.png",[]),960,544)]
-customReadarray("test.csv",function(array){instancesList[0].elements=array;instancesList[0].elements.push(new enemy(testImage,50,50,96,90,[[126,339,96,90]],0,0.1,"images/testImage.png",0));instancesList[0].elements.push(new projectile(testImage,350,50,96,90,[[126,339,96,90]],0,0.1,"images/testImage.png",0,instancesList[0].elements[instancesList[0].elements.length-2],5));},imgDict)
+let instancesList=[new map([],new character(testImage,50,50,165,102,[[21,12,165,102]],0,0.1,"images/testImage.png",[]),0,-6434,1046,7064)]
+instancesList[0].elements=csvConverter("test.csv",imgDict);
 mainloop();
 
 document.body.appendChild(gameScreen);

@@ -24,6 +24,10 @@ class camera:
         self.width=width
         self.height=height
 
+def freeVmem(vmem):
+    for i in list(vmem.keys()):
+        del vmem[i]
+
 def compress(array):
     finalArray = []
     if not array:  
@@ -63,6 +67,34 @@ def removeElementFromString(string,elem):
             finalString+=string[i]
     return finalString
 
+def minX(tab):
+    minXGived=tab[0][2]
+    for i in tab:
+        if i[2]<=minXGived:
+            minXGived=i[2]
+    return minXGived
+
+def minY(tab):
+    minYGived=tab[0][3]
+    for i in tab:
+        if i[3]<=minYGived:
+            minYGived=i[3]
+    return minYGived
+
+def maxX(tab):
+    minXGived=tab[0][2]+tab[0][4]
+    for i in tab:
+        if i[2]+i[4]>=minXGived:
+            minXGived=i[2]+i[4]
+    return minXGived
+
+def maxY(tab):
+    minYGived=tab[0][3]+tab[0][5]
+    for i in tab:
+        if i[3]+i[5]>=minYGived:
+            minYGived=i[3]+i[5]
+    return minYGived
+
 def getElts(Array):
     dictElem={}
     for i in Array:
@@ -78,8 +110,8 @@ def getElts(Array):
     return dictElem
 
 def detectInbound(element,x,y,width,height):
-	if (element.x>=x and element.x<=x+width) or (element.x+element.width>=x and element.x+element.width<=x+width) or (element.x<=x and element.x+element.width>=x+width):
-		if (element.y>=y and element.y<=y+height) or (element.y+element.height>=y and element.y+element.height<=y+height) or (element.y<=y and element.y+element.height>=y+height):
+	if (element[2]>=x and element[2]<=x+width) or (element[2]+element[4]>=x and element[2]+element[4]<=x+width) or (element[2]<=x and element[2]+element[4]>=x+width):
+		if (element[3]>=y and element[3]<=y+height) or (element[3]+element[5]>=y and element[3]+element[5]<=y+height) or (element[3]<=y and element[3]+element[5]>=y+height):
 			return True
 
 def convertArrayValuesToNumber(array):
@@ -151,6 +183,8 @@ class Main:
         self.resolution=resolution
     def cli(self):
         option=str(input("please enter a command:"))
+        if option=="MAP -dim":
+            print("{},{},{},{}".format(minX(self.instancesList),minY(self.instancesList),maxX(self.instancesList)-minX(self.instancesList),maxY(self.instancesList)-minY(self.instancesList)))
         if option=="CLI -q":
             self.cliActived=False
         if option[0:14]=="PJ -s -wrk -p>":
@@ -172,7 +206,7 @@ class Main:
             elif inputGived[0]=="enemy":
                 if inputGived[1] not in self.imgDict:
                     self.imgDict[inputGived[1]]=pygame.image.load(inputGived[1])
-                self.objectsList.append([inputGived[0],self.imgDict[inputGived[1]],int(inputGived[2]),int(inputGived[3]),int(inputGived[4]),int(inputGived[5]),convertArrayValuesToNumber(inputGived[6]),int(inputGived[7]),float(inputGived[8]),inputGived[9],inputGived[10]])
+                self.objectsList.append([inputGived[0],self.imgDict[inputGived[1]],int(inputGived[2]),int(inputGived[3]),int(inputGived[4]),int(inputGived[5]),convertArrayValuesToNumber(inputGived[6]),int(inputGived[7]),float(inputGived[8]),inputGived[9],inputGived[10],inputGived[11]])
     
     def saveWork(self,filename,type):
         savedFile=open(filename+".csv","w")
@@ -189,7 +223,9 @@ class Main:
     def openWork(self,filename):
         self.instancesList=[]
         self.objectsList=[]
-        openedFile=open(filename+".csv","r")
+        freeVmem(self.imgDict)
+        print(self.imgDict.keys())
+        openedFile=open(filename+".csv","r") 
         for i in openedFile.readlines():
             concernedList=customLoads("[{}]".format(i.replace("\n","")))
             if concernedList[0]=="animatedImage":
@@ -208,12 +244,12 @@ class Main:
                 for j in range(0,len(x)):
                     self.instancesList.append([concernedList[0],self.imgDict[concernedList[6]],x[j],y[j],int(concernedList[1]),int(concernedList[2]),convertArrayValuesToNumber(concernedList[3]),int(concernedList[4]),float(concernedList[5]),concernedList[6],concernedList[7],bool(concernedList[8])])
             if concernedList[0]=="enemy":
-                x=uncompress(concernedList[8])
-                y=uncompress(concernedList[9])
+                x=uncompress(concernedList[9])
+                y=uncompress(concernedList[10])
                 if concernedList[6] not in self.imgDict:
                     self.imgDict[concernedList[6]]=pygame.image.load(concernedList[6])
                 for j in range(0,len(x)):
-                    self.instancesList.append([concernedList[0],self.imgDict[concernedList[6]],x[j],y[j],int(concernedList[1]),int(concernedList[2]),convertArrayValuesToNumber(concernedList[3]),int(concernedList[4]),float(concernedList[5]),concernedList[6],concernedList[7]])
+                    self.instancesList.append([concernedList[0],self.imgDict[concernedList[6]],x[j],y[j],int(concernedList[1]),int(concernedList[2]),convertArrayValuesToNumber(concernedList[3]),int(concernedList[4]),float(concernedList[5]),concernedList[6],concernedList[7],bool(concernedList[8])])
             if concernedList[0]=="objectsList":
                 if concernedList[1]=="launchEventObject":
                     if concernedList[7] not in self.imgDict:
@@ -226,7 +262,7 @@ class Main:
                 elif concernedList[1]=="enemy":
                     if concernedList[7] not in self.imgDict:
                         self.imgDict[concernedList[7]]=pygame.image.load(concernedList[7])
-                    self.objectsList.append([concernedList[1],self.imgDict[concernedList[7]],self.cursorX,self.cursorY,int(concernedList[2]),int(concernedList[3]),convertArrayValuesToNumber(concernedList[4]),int(concernedList[5]),float(concernedList[6]),concernedList[7],concernedList[8]])
+                    self.objectsList.append([concernedList[1],self.imgDict[concernedList[7]],self.cursorX,self.cursorY,int(concernedList[2]),int(concernedList[3]),convertArrayValuesToNumber(concernedList[4]),int(concernedList[5]),float(concernedList[6]),concernedList[7],concernedList[8],bool(concernedList[9])])
         openedFile.close()
 
     def main(self):
@@ -281,7 +317,9 @@ class Main:
                 self.itemIndex-=1
 
             for instance in self.instancesList:
-                screen.blit(instance[1],(instance[2]-self.Camera.x,instance[3]-self.Camera.y),(instance[6][0][0],instance[6][0][1],instance[6][0][2],instance[6][0][3]))
+                if instance[1]!=None:
+                    if detectInbound(instance,self.Camera.x,self.Camera.y,self.Camera.width,self.Camera.height):
+                        screen.blit(instance[1],(instance[2]-self.Camera.x,instance[3]-self.Camera.y),(instance[6][0][0],instance[6][0][1],instance[6][0][2],instance[6][0][3]))
             
             if len(self.objectsList)!=0:
                 if self.placeElement.verify(keyPressed):
@@ -290,8 +328,9 @@ class Main:
                     if self.objectsList[self.itemIndex][0]=="launchEventObject":
                         self.instancesList.append([self.objectsList[self.itemIndex][0],self.objectsList[self.itemIndex][1],self.objectsList[self.itemIndex][2],self.objectsList[self.itemIndex][3],self.objectsList[self.itemIndex][4],self.objectsList[self.itemIndex][5],self.objectsList[self.itemIndex][6],self.objectsList[self.itemIndex][7],self.objectsList[self.itemIndex][8],self.objectsList[self.itemIndex][9],self.objectsList[self.itemIndex][10],self.objectsList[self.itemIndex][11]])
                     if self.objectsList[self.itemIndex][0]=="enemy":
-                        self.instancesList.append([self.objectsList[self.itemIndex][0],self.objectsList[self.itemIndex][1],self.objectsList[self.itemIndex][2],self.objectsList[self.itemIndex][3],self.objectsList[self.itemIndex][4],self.objectsList[self.itemIndex][5],self.objectsList[self.itemIndex][6],self.objectsList[self.itemIndex][7],self.objectsList[self.itemIndex][8],self.objectsList[self.itemIndex][9],self.objectsList[self.itemIndex][10]])
-                screen.blit(self.objectsList[self.itemIndex][1],(self.objectsList[self.itemIndex][2]-self.Camera.x,self.objectsList[self.itemIndex][3]-self.Camera.y),(self.objectsList[self.itemIndex][6][0][0],self.objectsList[self.itemIndex][6][0][1],self.objectsList[self.itemIndex][6][0][2],self.objectsList[self.itemIndex][6][0][3]))
+                        self.instancesList.append([self.objectsList[self.itemIndex][0],self.objectsList[self.itemIndex][1],self.objectsList[self.itemIndex][2],self.objectsList[self.itemIndex][3],self.objectsList[self.itemIndex][4],self.objectsList[self.itemIndex][5],self.objectsList[self.itemIndex][6],self.objectsList[self.itemIndex][7],self.objectsList[self.itemIndex][8],self.objectsList[self.itemIndex][9],self.objectsList[self.itemIndex][10],self.objectsList[self.itemIndex][11]])
+                if self.objectsList[self.itemIndex][1]!=None:
+                    screen.blit(self.objectsList[self.itemIndex][1],(self.objectsList[self.itemIndex][2]-self.Camera.x,self.objectsList[self.itemIndex][3]-self.Camera.y),(self.objectsList[self.itemIndex][6][0][0],self.objectsList[self.itemIndex][6][0][1],self.objectsList[self.itemIndex][6][0][2],self.objectsList[self.itemIndex][6][0][3]))
             clock.tick(60)
             pygame.display.flip()
         pygame.quit
